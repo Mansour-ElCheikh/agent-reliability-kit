@@ -1,0 +1,23 @@
+# Minimal tool-capabilities fixture for Copilot emitter self-test.
+
+schema_version: 1
+
+copilot-agent:
+  tier: 1
+  as_of: "2026-05-18"
+  hook_intercept:
+    supports: true
+    mechanism: "VS Code agent PreToolUse"
+    tool_names_write: [create_file, replace_string_in_file, multi_replace_string_in_file]
+  subagent_invocation:
+    supports: false
+    fallback: inline_review_in_skill_body
+  session_lifecycle_hooks:
+    supports: partial
+    events: [SessionStart]
+    notes: "SessionEnd analog not exposed"
+  llm_inline_invocation:
+    supports: true
+    format: "agent-mode tool-call routing via instruction files"
+  skill_format:
+    path: ".github/instructions/<name>.md"

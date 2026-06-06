@@ -1,0 +1,80 @@
+{
+  "_note": "Ground truth for Eval A. Hidden from the review subagents (blind). One seeded defect per F01-F09; F10-F12 are clean. 'caught' = the verdict flags the seeded defect at the right location with the right nature.",
+  "fixtures": [
+    {
+      "id": "F01",
+      "clean": false,
+      "defect_type": "min_invariant_shape_word",
+      "location": "tasks.md task 2 (Mapper)",
+      "detail": "Min-Invariant cell is the shape word 'array' instead of a concrete fact",
+      "catch_signals": ["min-invariant", "array", "shape", "concrete", "min_invariant_per_task", "false green"]
+    },
+    {
+      "id": "F02",
+      "clean": false,
+      "defect_type": "vague_untestable_ac",
+      "location": "epic.md acceptance criterion 3",
+      "detail": "'The search should work well with large note collections' is not testable",
+      "catch_signals": ["vague", "untestable", "work well", "not testable", "measurable", "subjective"]
+    },
+    {
+      "id": "F03",
+      "clean": false,
+      "defect_type": "missing_given_when_then",
+      "location": "tasks.md task 1 (refill)",
+      "detail": "'Implement the token-bucket refill' has no given/when/then behavior",
+      "catch_signals": ["given", "when", "then", "vague", "not concrete", "implement the", "no behavior", "behaviour"]
+    },
+    {
+      "id": "F04",
+      "clean": false,
+      "defect_type": "unsplit_and",
+      "location": "tasks.md task 2 (validate/refresh)",
+      "detail": "Task description contains 'and' (validate the token AND refresh) - should be split",
+      "catch_signals": ["and", "split", "two things", "compound", "single task", "one task"]
+    },
+    {
+      "id": "F05",
+      "clean": false,
+      "defect_type": "boundary_violation",
+      "location": "tasks.md task 2 (parser imports vscode)",
+      "detail": "Parser imports vscode directly, violating the stated boundary rule",
+      "catch_signals": ["boundary", "vscode", "import", "platform", "injection", "extension.ts"]
+    },
+    {
+      "id": "F06",
+      "clean": false,
+      "defect_type": "locked_decision_violation",
+      "location": "tasks.md task 1 (JSON cache file)",
+      "detail": "JSON cache file contradicts ADR-0004 (SQLite only, no second datastore)",
+      "catch_signals": ["adr", "sqlite", "second datastore", "second data store", "contradict", "json file", "decision", "locked"]
+    },
+    {
+      "id": "F07",
+      "clean": false,
+      "defect_type": "uncovered_component_missing_tests",
+      "location": "component 002 (Validator) has criteria but no tasks",
+      "detail": "Validation acceptance criteria have no covering tasks",
+      "catch_signals": ["no task", "not covered", "uncovered", "missing task", "validation", "validator", "002", "criterion", "no test", "coverage"]
+    },
+    {
+      "id": "F08",
+      "clean": false,
+      "defect_type": "redundancy",
+      "location": "tasks.md repeats epic.md acceptance criteria verbatim",
+      "detail": "Component 001 Acceptance Criteria block copies epic.md ACs verbatim",
+      "catch_signals": ["redundan", "duplicat", "copy", "repeat", "verbatim", "same information", "restate"]
+    },
+    {
+      "id": "F09",
+      "clean": false,
+      "defect_type": "orphan_scope_creep",
+      "location": "tasks.md task 4 (keyboard shortcut settings page)",
+      "detail": "Task maps to no acceptance criterion (unrelated scope creep)",
+      "catch_signals": ["orphan", "scope", "no criterion", "not in", "unrelated", "shortcut", "out of scope", "does not map", "doesn't map", "extra scope", "creep"]
+    },
+    { "id": "F10", "clean": true, "defect_type": null, "location": null, "detail": "clean: debounce search", "catch_signals": [] },
+    { "id": "F11", "clean": true, "defect_type": null, "location": null, "detail": "clean: export logs as JSON", "catch_signals": [] },
+    { "id": "F12", "clean": true, "defect_type": null, "location": null, "detail": "clean: password strength meter", "catch_signals": [] }
+  ]
+}

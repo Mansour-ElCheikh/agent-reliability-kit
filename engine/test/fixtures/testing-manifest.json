@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "commands": {
+    "test:unit": {
+      "layer": "unit",
+      "style": "white-box",
+      "purpose": "Module-level logic",
+      "scope": ["src/**/*.test.ts"]
+    }
+  },
+  "surfaces": {
+    "core": { "minLayers": ["test:unit"] }
+  }
+}

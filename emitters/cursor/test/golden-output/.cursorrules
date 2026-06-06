@@ -1,0 +1,23 @@
+<!-- BEGIN scaffold-managed: emitters/cursor -->
+<!--
+GENERATED FROM: canonical/skills/
+EMITTER: emitters/cursor (v1)
+GENERATED AT: NORMALISED
+DO NOT EDIT - changes will be overwritten on next emit.
+To customise: copy this file to a different name and break the canonical link.
+-->
+
+This project uses the agent-reliability-scaffold canonical specs.
+Cursor reads these conventions as ambient guidance + per-rule files.
+
+Active skills (emitted as Cursor MDC rules):
+
+- `sdlc` — see `.cursor/rules/sdlc.mdc`
+
+Invocation-only skills (documented here; not glob-applied):
+
+- `audit` — invoke manually when needed; Cursor does not support named-skill dispatch
+
+To regenerate after canonical/ changes:
+  node emitters/cursor/dist/cli.js --output-root . --mode=adopt
+<!-- END scaffold-managed: emitters/cursor -->

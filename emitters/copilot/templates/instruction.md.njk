@@ -1,0 +1,12 @@
+<< generated_header | safe >>
+# << title >>
+
+> **Trigger:** << trigger_phrases_str >>
+<% if has_degradations %>
+> **Note (degraded emit for Copilot agent mode):** capability fallbacks applied:
+<% for d in degradations %>
+> - `<< d.cap >>` → `<< d.fallback >>`
+<% endfor %>
+<% endif %>
+
+<< body | safe >>

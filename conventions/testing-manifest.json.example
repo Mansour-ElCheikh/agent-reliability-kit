@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_doc": "testing-manifest.json — declares the test layers your project ships. Each entry names a command (e.g. 'test:unit'), the layer it covers, and the path scope it owns. Governance rules like 'test files must live in declared directories' read from this file. Surfaces declare the minimum layers they require so adding a feature that touches a surface refuses to ship until those layers run green. Layers carry an explicit testing-style declaration (white-box / black-box / static); see conventions/testing.md for what each style covers + when to use each. Replace the examples below with your project's actual shape.",
+  "version": 1,
+  "_testFilePatterns_doc": "ADR-0013: globs that identify a test file, used by the co-located-test and manifest-placement predicates. Optional — omit to use the built-in multi-framework default (JS/TS `*.test.*` / `*.spec.*`, pytest `test_*.py` / `*_test.py`, Go `*_test.go`). The set below is the default, shown explicitly; narrow it to your stack if you want.",
+  "testFilePatterns": [
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/test_*.py",
+    "**/*_test.py",
+    "**/*_test.go"
+  ],
+  "_coLocation_doc": "ADR-0013: the source→test path template for the co-located-test predicate. Optional — defaults to the JS/TS sibling layout shown. A pytest project that co-locates would use \"{dir}/test_{name}.{ext}\"; a project that keeps tests in a separate tree should not enable the co-located-test rule and should rely on manifest-placement instead.",
+  "coLocation": {
+    "testPath": "{dir}/{name}.test.{ext}"
+  },
+  "commands": {
+    "test:unit": {
+      "layer": "unit",
+      "style": "white-box",
+      "purpose": "Fast default confidence loop for module-level logic. Co-located with source. Tests may know internal structure: assertions on private helpers, exact pure-function outputs, edge cases at the smallest unit boundary.",
+      "scope": [
+        "src/**/*.test.ts"
+      ]
+    },
+    "test:integration": {
+      "layer": "integration",
+      "style": "black-box",
+      "purpose": "Cross-module wiring and side-effect verification. Tests exercise public seams without depending on internal implementation. Behaviour-driven; refactor-safe under interface stability.",
+      "scope": [
+        "integration/**/*.test.ts"
+      ]
+    },
+    "test:e2e": {
+      "layer": "end-to-end",
+      "style": "black-box",
+      "purpose": "User-visible behaviour across the deployed surface. Tests interact only through the actual product surface (UI, CLI, public API). Implementation details invisible by construction.",
+      "scope": [
+        "e2e/**/*.e2e.ts"
+      ]
+    },
+    "lint": {
+      "layer": "static-quality",
+      "style": "static",
+      "purpose": "Static quality gate. Type checks, lint, format, structural rules — no runtime assertions.",
+      "scope": [
+        "src/",
+        "scripts/"
+      ]
+    }
+  },
+  "surfaces": {
+    "core": {
+      "minLayers": ["test:unit"]
+    },
+    "publicApi": {
+      "minLayers": ["test:unit", "test:integration"]
+    },
+    "userFacing": {
+      "minLayers": ["test:unit", "test:integration", "test:e2e"]
+    }
+  }
+}

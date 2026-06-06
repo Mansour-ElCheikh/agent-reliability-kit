@@ -1,0 +1,58 @@
+---
+description: Full SDLC orchestrator.
+globs: ["dev/epics/**","src/**","docs/**"]
+alwaysApply: false
+---
+
+<!--
+GENERATED FROM: canonical/skills/sdlc.md
+EMITTER: emitters/cursor (v1)
+GENERATED AT: NORMALISED
+DO NOT EDIT - changes will be overwritten on next emit.
+To customise: copy this file to a different name and break the canonical link.
+
+Degradations applied:
+- session_lifecycle_hooks -> manual_invocation
+-->
+
+> **Note (degraded emit):** This rule was degraded from the canonical spec for Cursor's capability surface. The skill is glob-applied here; user-typed invocation is not supported. Degradations applied:
+> - `session_lifecycle_hooks` → `manual_invocation`
+
+# SDLC Orchestrator
+
+Read the active epic's status and dispatch.
+
+## Overview
+
+Routes work to the right phase based on epic status. Test fixture — minimal body conforming to ADR-0036 anatomy.
+
+## When to Use
+
+- At session start to resume work
+- /sdlc "feature" to start fresh
+
+**When NOT to use:**
+- For 1-step ad-hoc work
+- When you know the exact phase to invoke
+
+## Step 1
+
+Read project state.
+
+## Step 2
+
+Find active epic.
+
+## Common Rationalizations
+
+| Excuse | Reality |
+|---|---|
+| "Too small for full workflow" | Small-but-wrong is the most expensive class of bug. |
+
+## Red Flags
+
+- Skipping ahead without phase gates.
+
+## Verification
+
+- [ ] All steps produced their artifacts.

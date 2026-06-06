@@ -1,0 +1,21 @@
+# Minimal tool-capabilities fixture for Cursor emitter self-test.
+# Only the fields the emitter reads.
+
+schema_version: 1
+
+cursor:
+  tier: 2
+  as_of: "2026-05-18"
+  hook_intercept:
+    supports: false
+    fallback: commit_time_gate
+  subagent_invocation:
+    supports: false
+    fallback: inline_review_in_skill_body
+  session_lifecycle_hooks:
+    supports: false
+  llm_inline_invocation:
+    supports: partial
+    format: "rules apply by glob match; not user-invoked by name"
+  skill_format:
+    path: ".cursor/rules/<name>.mdc"

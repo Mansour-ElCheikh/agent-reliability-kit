@@ -1,0 +1,9 @@
+# pnpm workspace declaration.
+# See ADR-0005 §Part 4 (corepack-driven pnpm; amended 2026-05-18).
+packages:
+  - 'emitters/_lib'
+  - 'emitters/cursor'
+  - 'emitters/copilot'
+  - 'emitters/claude-code'
+  - 'engine'
+  - 'scripts'                # /scaffold wrapper (S6.3b)

@@ -1,0 +1,199 @@
+# Tool capabilities registry — canonical
+#
+# Specifies what each target AI coding tool supports. Emitters read this to
+# decide whether a canonical skill / agent / rule can emit normally, must
+# degrade, or must skip. See canonical/emitter-contract.md §4 (capability
+# mapping).
+#
+# When adding a tool: see canonical/emitter-contract.md §7.
+# When a tool's capabilities change (vendor ships a feature, retires one):
+# update the `as_of` date and any affected fields. If the change breaks
+# existing emitter output, bump the emitter version.
+
+schema_version: 1
+
+# ────────────────────────────────────────────────────────────────────────────
+# Tier 1 — write-time hook intercept + subagent invocation available
+# ────────────────────────────────────────────────────────────────────────────
+
+claude-code:
+  tier: 1
+  as_of: "2026-05-17"
+  hook_intercept:
+    supports: true
+    mechanism: PreToolUse
+    tool_names_write: [Write, Edit]
+  subagent_invocation:
+    supports: true
+    location: .claude/agents/<name>.md
+  session_lifecycle_hooks:
+    supports: true
+    events: [SessionStart, SessionEnd, UserPromptSubmit, Stop, SubagentStop]
+  llm_inline_invocation:
+    supports: true
+    format: /<skill-name> via SKILL.md description triggers
+  skill_format:
+    path: .claude/skills/<name>/SKILL.md
+    frontmatter: { name: string, description: string }
+  agent_format:
+    path: .claude/agents/<name>.md
+    frontmatter: { name: string, description: string, model: string, tools: string }
+  rule_format:
+    governance_yaml: project-root (engine reads + PreToolUse hook backs)
+    hook_wiring: .claude/settings.json PreToolUse entries
+  steering_file:
+    path: CLAUDE.md
+    import_syntax: "@<path>"
+
+copilot-agent:
+  tier: 1
+  as_of: "2026-05-17"
+  hook_intercept:
+    supports: true
+    mechanism: VS Code agent PreToolUse
+    tool_names_write: [create_file, replace_string_in_file, multi_replace_string_in_file]
+    notes: Matcher rules differ from Claude; emitter handles tool-name mapping.
+  subagent_invocation:
+    supports: false
+    fallback: inline review logic into skill body
+  session_lifecycle_hooks:
+    supports: partial
+    events: [SessionStart]
+    notes: SessionEnd analog not exposed cleanly as of 2026-05.
+  llm_inline_invocation:
+    supports: true
+    format: agent-mode tool-call routing via instruction files
+  skill_format:
+    path: .github/instructions/<name>.md
+    frontmatter: minimal (description recommended)
+  agent_format:
+    not_supported: true
+  rule_format:
+    governance_yaml: project-root (engine reads; git pre-commit gate backs)
+    hook_wiring: .github/hooks/*.json
+  steering_file:
+    path: .github/copilot-instructions.md
+    import_syntax: none (inline content)
+
+# ────────────────────────────────────────────────────────────────────────────
+# Tier 2 — glob-applied advisory rules + commit-time gate only
+# ────────────────────────────────────────────────────────────────────────────
+
+cursor:
+  tier: 2
+  as_of: "2026-05-17"
+  hook_intercept:
+    supports: false
+    fallback: git pre-commit gate (engine-backed)
+  subagent_invocation:
+    supports: false
+    fallback: inline review logic into skill body
+  session_lifecycle_hooks:
+    supports: false
+  llm_inline_invocation:
+    supports: partial
+    format: rules apply by glob match; not user-invoked by name
+  skill_format:
+    path: .cursor/rules/<name>.mdc
+    frontmatter: { description: string, globs: string, alwaysApply: boolean }
+    notes: |
+      MDC rules are glob-applied, not LLM-invoked. Emitter maps a skill's
+      `applicable_phases` to a glob heuristic (e.g., review skill globs
+      against any source file modification).
+  agent_format:
+    not_supported: true
+  rule_format:
+    governance_yaml: project-root (engine reads at commit time)
+    hook_wiring: .git/hooks/pre-commit calling the engine
+  steering_file:
+    path: .cursorrules
+    import_syntax: none (inline content)
+
+codex:
+  tier: 2
+  as_of: "2026-05-17"
+  hook_intercept:
+    supports: false
+    fallback: git pre-commit gate (engine-backed)
+  subagent_invocation:
+    supports: false
+    fallback: inline review logic into skill body
+  session_lifecycle_hooks:
+    supports: false
+  llm_inline_invocation:
+    supports: false
+  skill_format:
+    path: AGENTS.md
+    frontmatter: none (inline content in a single file)
+    notes: |
+      Codex reads a single AGENTS.md. The emitter concatenates all canonical
+      skills into sections within AGENTS.md, with clear section dividers.
+  agent_format:
+    not_supported: true
+  rule_format:
+    governance_yaml: project-root (engine reads at commit time)
+    hook_wiring: .git/hooks/pre-commit
+  steering_file:
+    path: AGENTS.md
+    import_syntax: none
+
+# ────────────────────────────────────────────────────────────────────────────
+# Tier 3 — steering file conventions + commit-time gate only
+# ────────────────────────────────────────────────────────────────────────────
+
+aider:
+  tier: 3
+  as_of: "2026-05-17"
+  hook_intercept:
+    supports: false
+    fallback: git pre-commit gate (engine-backed)
+  subagent_invocation:
+    supports: false
+    fallback: omit from skill body; advisory-only
+  session_lifecycle_hooks:
+    supports: false
+  llm_inline_invocation:
+    supports: false
+  skill_format:
+    path: CONVENTIONS.md
+    frontmatter: none
+    notes: |
+      Aider reads CONVENTIONS.md as ambient guidance. Skills are inlined as
+      sections; no per-skill invocation.
+  agent_format:
+    not_supported: true
+  rule_format:
+    governance_yaml: project-root (engine reads at commit time)
+    hook_wiring: .git/hooks/pre-commit
+  steering_file:
+    path: CONVENTIONS.md
+    import_syntax: none
+
+continue:
+  tier: 3
+  as_of: "2026-05-17"
+  hook_intercept:
+    supports: false
+    fallback: git pre-commit gate (engine-backed)
+  subagent_invocation:
+    supports: false
+    fallback: omit from skill body; advisory-only
+  session_lifecycle_hooks:
+    supports: false
+  llm_inline_invocation:
+    supports: partial
+    format: Continue slash-commands defined in .continuerc.json
+  skill_format:
+    path: .continuerc.json
+    frontmatter: JSON config with `customCommands` array
+    notes: |
+      Each canonical skill maps to one entry in customCommands.
+      Body content goes into the prompt string.
+  agent_format:
+    not_supported: true
+  rule_format:
+    governance_yaml: project-root (engine reads at commit time)
+    hook_wiring: .git/hooks/pre-commit
+  steering_file:
+    path: .continuerc.json (systemMessage field)
+    import_syntax: none

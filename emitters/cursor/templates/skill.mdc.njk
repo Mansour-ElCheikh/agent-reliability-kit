@@ -1,0 +1,17 @@
+---
+description: << description >>
+globs: << globs_json >>
+alwaysApply: << always_apply >>
+---
+
+<< generated_header | safe >>
+<% if has_degradations %>
+> **Note (degraded emit):** This rule was degraded from the canonical spec for Cursor's capability surface. The skill is glob-applied here; user-typed invocation is not supported. Degradations applied:
+<% for d in degradations %>
+> - `<< d.cap >>` → `<< d.fallback >>`
+<% endfor %>
+
+<% endif %>
+# << title >>
+
+<< body | safe >>
