@@ -1,0 +1,24 @@
+# Build artefacts + deps
+**/dist/**
+node_modules/**
+pnpm-lock.yaml
+
+# Markdown + content surfaces are owned by the brand-architect / anatomy
+# gates, NOT prettier (prettier must never reflow README/ARCHITECTURE or
+# canonical skill bodies — em-dash + anatomy discipline live there).
+**/*.md
+canonical/**
+docs/**
+.claude/**
+
+# Test fixtures + golden output are byte-exact; never reformat.
+**/test/**/fixtures/**
+**/golden-output/**
+**/*.example
+**/*.example.*
+
+# v0.1 scope: prettier is enforced on the engine package (the reference
+# TypeScript surface). Repo-wide formatting of emitters/scripts is a
+# mechanical fast-follow, intentionally not bundled with the D1-D4 change.
+emitters/**
+scripts/**

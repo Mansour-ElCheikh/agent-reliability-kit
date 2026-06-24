@@ -1,0 +1,50 @@
+version: "1.0"
+project: engine-selftest
+
+mode:
+  default: enforce
+
+scope:
+  include:
+    - "src/**"
+    - "wrong/**"
+    - ".claude/**"
+  exclude:
+    - "node_modules/**"
+
+rules:
+  - id: R2_tdd_test_alignment
+    severity: warn
+    description: New source files require a co-located test file.
+    enforcement: [engine]
+    check: source_file_has_co_located_test
+    scope: "src/**/*.ts"
+    exclude_patterns:
+      - "src/**/*.config.ts"
+
+  - id: R3_testing_manifest_alignment
+    severity: error
+    description: Tests must live in directories declared in testing-manifest.json.
+    enforcement: [engine]
+    check: test_file_in_manifest_directory
+    scope: "**/*.test.ts"
+
+  - id: R4_boundary_import_isolation
+    severity: error
+    description: Platform-specific imports allowed only in approved boundary files.
+    enforcement: [hook, engine]
+    check: boundary_imports
+    scope: "src/**"
+    forbidden_import_patterns:
+      - "^vscode$"
+    approved_files:
+      - "src/boundary.ts"
+
+  - id: R26_skill_size_warn
+    severity: warn
+    description: SKILL.md files should stay under the soft cap.
+    enforcement: [engine]
+    check: prompt_size_warn
+    scope: ".claude/skills/**/SKILL.md"
+    warn_bytes: 200
+    max_bytes: 500

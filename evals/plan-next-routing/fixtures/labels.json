@@ -1,0 +1,21 @@
+{
+  "_note": "Ground truth for Eval C (plan-next routing). Hidden from the subagents. 'correct' = the route matches expected AND the named edge rule is honored.",
+  "fixtures": [
+    { "id": "R01", "rule": "happy-Building", "expected": "Build phase, resume 002-import", "edge": false,
+      "signals": ["build", "002", "resume", "import"] },
+    { "id": "R02", "rule": "happy-Built", "expected": "Review phase on 001-streaming", "edge": false,
+      "signals": ["review", "001", "streaming"] },
+    { "id": "R03", "rule": "Shipped-skip", "expected": "Do NOT re-suggest 001 (Shipped); start 002-export (Define new)", "edge": true,
+      "signals": ["002", "export", "next", "define", "new"], "must_not": ["review 001", "ship 001", "resume 001"] },
+    { "id": "R04", "rule": "precedence (epic-status > roadmap next)", "expected": "Resume Build on 003-search; do NOT start 099-redesign", "edge": true,
+      "signals": ["003", "search", "build", "resume"], "must_not": ["099", "redesign"] },
+    { "id": "R05", "rule": "multi-in-flight", "expected": "Surface BOTH (001 Built, 002 Building) with a rationale; defensible pick, not a silent blind grab", "edge": true,
+      "signals": ["001", "002", "both", "built", "building"], "must_not": [] },
+    { "id": "R06", "rule": "greenfield", "expected": "Define a NEW epic from 001-onboarding", "edge": true,
+      "signals": ["define", "new", "001", "onboarding"], "must_not": [] },
+    { "id": "R07", "rule": "governance-gate", "expected": "Fix the 2 governance ERRORS first (P0), before resuming build on 002", "edge": true,
+      "signals": ["governance", "error", "first", "2 errors", "fix"], "must_not": [] },
+    { "id": "R08", "rule": "staleness", "expected": "Flag the stub as STALE (weeks old / behind HEAD); do not trust blindly; refresh / live-read before routing", "edge": true,
+      "signals": ["stale", "old", "refresh", "behind", "2026-05", "9 commits", "live"], "must_not": [] }
+  ]
+}

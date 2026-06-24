@@ -1,0 +1,62 @@
+# OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Editor / IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+*.iml
+
+# Logs
+*.log
+hook.log
+
+# Dependency caches (Node-only stack per ADR-0005)
+node_modules/
+.npm/
+*.tsbuildinfo
+
+# TS build output
+dist/
+coverage/
+
+# Scaffold-emitter run artifacts (emit reports, audit reports — per-run).
+# Anchored to repo root with a leading slash so emitter golden-output
+# fixtures (emitters/<tool>/test/golden-output/.scaffold/) stay tracked —
+# the self-test diffs the normalised emit report against them.
+/.scaffold/
+
+# Claude Code emitter output for THIS repo (F8: canonical/ is the source of
+# truth; .claude/skills/ + .claude/agents/ are generated artifacts regenerated
+# by emitters/claude-code. Correctness proven by the emitter golden self-test +
+# anatomy gate, not by committing generated files. Adopters DO commit their
+# emitted .claude/ surface; this ignore is scaffold-repo-specific.)
+#
+# Anchored to repo root with a leading slash so the emitter's golden-output
+# test fixtures (emitters/claude-code/test/golden-output/.claude/...) stay
+# tracked.
+/.claude/skills/
+/.claude/agents/
+/CLAUDE.md
+
+# Private dev-context (the kit's own Layer-1 working memory). Never rides the
+# public push (conventions/public-flip-hygiene.md rule 4); CI's private-surface
+# leak gate fails the build if memory/ is ever tracked.
+/memory/
+
+# Eval run outputs (per-run; the harness + fixtures + design docs are tracked,
+# the raw run artifacts graduate to the separate eval repo — see docs/findings/eval-*.md)
+evals/**/results.json
+evals/**/raw-verdicts/
+
+# Local state
+.governance-baseline.local.json
+.harvest-cache/
+
+# Runtime caches sometimes carried by adopters
+.cache/
+__pycache__/

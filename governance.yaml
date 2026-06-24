@@ -1,0 +1,156 @@
+# governance.yaml - the kit governing ITSELF (dogfood; ADR-0007).
+#
+# This is the kit's LIVE self-governance config, not the adopter shape. The
+# adopter shape stays `governance/governance.yaml.example` (ADR-0001: ship the
+# shape, not one project's contents). This file is the kit eating its own dog
+# food: the Universal Default Set the kit tells everyone to run, run on the
+# kit's own engine/emitters/scripts + canonical/docs. CI runs it ADVISORY
+# (records, never blocks); the ratchet (`.governance-baseline.json`) blocks
+# NEW regressions. Contract: docs/decisions/0002-governance-yaml-shape.md.
+
+version: "1.0"
+project: agent-reliability-kit
+
+# solo: universal rules stay `warn` (recorded + ratcheted, never block).
+# no_secrets stays `error` (safety, both profiles).
+profile: solo
+
+scope:
+  include:
+    - "engine/src/**"
+    - "emitters/**/src/**"
+    - "scripts/src/**"
+    - "canonical/**"
+    - "docs/**"
+    - "conventions/**"
+    - "*.md"
+  exclude:
+    - "node_modules/**"
+    - "dist/**"
+    - "**/test/**"
+    - "**/fixtures/**"
+    - "**/golden-output/**"
+    - "**/*.example"
+    - "**/*.example.*"
+
+rules:
+  # ══════════════════════════════════════════════════════════════════════
+  # UNIVERSAL DEFAULT SET (ADR-0007) - the floor the kit prescribes to
+  # everyone, applied to the kit itself. These MUST pass (or baseline).
+  # ══════════════════════════════════════════════════════════════════════
+
+  - id: no_secrets
+    safety: true
+    severity: error
+    description: No credentials/keys committed (safety; never advisory).
+    enforcement: [hook, engine]
+    check: no_secrets
+    scope: "**"
+    exclude_patterns:
+      - "**/*.md"
+      - "**/*.example"
+      - "**/*.example.*"
+      - "**/*.test.*"
+      - "**/fixtures/**"
+
+  # Write-time rule: it asks "did THIS edit touch a protected path?" - meaningful
+  # at edit time (the hook), not at a full-tree CI audit where every protected
+  # file already in the tree reads as "modified". Enforcement is [hook] only so
+  # the CI tree-audit does not over-fire on all 25 committed ADRs; it still gates
+  # at write time via the emitted PreToolUse hook.
+  - id: scope_containment
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: Protected paths (the decision record + governance config + baseline) require an explicit out-of-scope/ADR acknowledgement (write-time hook rule).
+    enforcement: [hook]
+    check: scope_containment
+    scope: "**"
+    protected_paths:
+      - "docs/decisions/0*.md"
+      - "governance.yaml"
+      - ".governance-baseline.json"
+
+  - id: doc_validity
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: Planning/decision docs declare validity + as_of + expiry (the staleness discipline the kit dogfoods).
+    enforcement: [hook, engine]
+    check: doc_validity
+    # Planning/decision docs only - NOT dated eval findings (a `*plan*` glob
+    # would catch eval-plan-next-routing, which is a result, not a live plan).
+    file_patterns:
+      - "ROADMAP.md"
+      - "EXECUTION_PLAN*.md"
+      - "PLAN.md"
+
+  - id: skill_anatomy_size
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: Source skill markdown stays under 16KB soft / 32KB hard so it does not bloat agent context.
+    enforcement: [engine]
+    check: prompt_size_warn
+    scope: "canonical/skills/**/*.md"
+    warn_bytes: 16000
+    max_bytes: 32000
+
+  - id: userfacing_integration_layer
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: User-facing routes must declare an integration layer. Self-scoping; the kit is a CLI/library with no route/page surface, so this is a no-op here (kept to prove the exemption fires correctly).
+    enforcement: [engine]
+    check: userfacing_integration_layer
+    scope: "testing-manifest.json"
+    file_patterns:
+      - "app/**/route.{ts,js,tsx}"
+      - "pages/**/*.{tsx,jsx}"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PROJECT-SPECIFIC - the kit dogfooding its OWN conventions.
+  # ══════════════════════════════════════════════════════════════════════
+
+  # ADR-on-decision: the kit's own ADR discipline (25 ADRs, ADR-0018 number
+  # gate). Decision-language commits should add an ADR. Fires at commit/hook
+  # time, not at tree-audit (no-op in CI's tree pass; kept for the hook path).
+  - id: adr_on_decision
+    severity: audit
+    description: Decision-language commits ("decided"/"chose"/"picked") should accompany a new ADR.
+    enforcement: [engine]
+    check: decision_keyword_without_adr
+    scope: "**"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # DOCUMENTED EXCLUSION (honesty: test-existence rules the kit ships but does
+  # not self-apply, and why)
+  # ══════════════════════════════════════════════════════════════════════
+  #
+  # The kit ships two file-name test-existence predicates:
+  #   source_file_has_co_located_test  - a sibling test (foo.ts + foo.test.ts)
+  #   source_file_has_test (ADR-0026)  - a test discoverable BY NAME anywhere
+  #                                      in scope (central dir / pytest / Go)
+  # Neither is self-applied, for a real reason surfaced by dogfooding: the kit
+  # CONSOLIDATES tests. predicates.test.ts covers all 13 predicates; audit.test.ts
+  # covers audit + ratchet + toon + the registry; gate.test.ts covers gate + hook.
+  # So engine/src/ratchet.ts, toon.ts, hook.ts ARE tested, just not in a file
+  # named after them - and BOTH predicates assume a 1:1 source:test naming the
+  # kit does not follow. Self-applying source_file_has_test would flag 6 of 11
+  # engine/src files: 3 covered-but-consolidated (ratchet/toon/hook) + 3 that
+  # legitimately carry no unit test (type-only types.ts, barrel index.ts,
+  # integration-tested entrypoint cli.ts).
+  #
+  # Honesty correction (2026-06-23): an earlier version of this note counted
+  # extensions.ts among the "covered" files. It was not - it was exercised by
+  # NO test at all (a genuine gap a name-based predicate cannot distinguish from
+  # the consolidated false-positives). Closed: engine/test/extensions.test.ts now
+  # covers it 1:1, so it PASSES source_file_has_test and drops from the flagged
+  # set (7 -> 6).
+  #
+  # Surfaced finding: a project that consolidates tests needs a "source is
+  # EXERCISED by some test" check (coverage / import graph), which ADR-0026
+  # explicitly scopes OUT (existence-by-name, not linkage). source_file_has_test
+  # CLOSES the hole for the common 1:1-naming central layout (most TS/JS
+  # projects); the kit's own consolidated style is the next, separate gap.
+  # Tracked, not silently dropped.

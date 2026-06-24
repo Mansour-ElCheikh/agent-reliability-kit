@@ -1,0 +1,62 @@
+# reliability.yml — adopter CI workflow (shipped by /scaffold)
+#
+# This is the commit-time half of the three-tier model (ADR-0004): the
+# write-time PreToolUse hook is Claude-Code-only; THIS gate covers every
+# contributor and every tool, on every PR. /scaffold copies this to
+# .github/workflows/reliability.yml in your repo. Customise the marked TODOs.
+#
+# Tiering note: under governance `profile: team` the engine audit is a hard
+# required check (blocks merge). Under `profile: solo` keep it advisory
+# (set `continue-on-error: true` on the governance step).
+
+name: reliability
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  reliability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # TODO: swap for your package manager (pnpm/yarn/npm).
+      - name: Install
+        run: npm ci
+
+      # ── Universal hygiene: lint + format + test ──────────────────────
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Format check
+        run: npm run format:check --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+      # ── Governance gate (the kit's deterministic spine) ──────────────
+      # TODO: point ENGINE at your scaffold checkout, or `npx` the published
+      # engine once available. Under profile=team this is a required check;
+      # under profile=solo add `continue-on-error: true`.
+      - name: Governance audit (engine)
+        env:
+          ENGINE: ./scaffold/engine/dist/cli.js # TODO: adjust path
+        run: |
+          if [ -f "$ENGINE" ]; then
+            node "$ENGINE" audit --config governance.yaml
+          else
+            echo "::warning::governance engine not found at $ENGINE — wire the scaffold checkout (see README quick start)"
+          fi
+
+      # ── No-secrets safety net (defence in depth; the engine also checks) ─
+      - name: Secret scan tripwire
+        run: |
+          if git grep -nE 'AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----' -- . ':!**/*.example*' ':!**/fixtures/**'; then
+            echo "::error::possible committed secret"; exit 1
+          fi

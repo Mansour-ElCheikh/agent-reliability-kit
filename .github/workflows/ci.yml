@@ -1,0 +1,350 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-and-test:
+    name: Validate canonical + run emitter self-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm (corepack-managed; version pinned via package.json packageManager field)
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install workspace dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all workspaces
+        run: pnpm run build
+
+      # ────────────────────────────────────────────────────────────────
+      # D3 (ADR-0007): lint + format. format:check is a hard gate (prettier
+      # is deterministic; engine package is prettier-clean). lint is
+      # advisory for v0.1 — the calibrated reference config ships + runs,
+      # but a never-before-linted codebase is not a hard wall yet (the
+      # same soft-start philosophy as the governance profile ramp).
+      # ────────────────────────────────────────────────────────────────
+
+      - name: Prettier format check (engine)
+        run: pnpm run format:check
+
+      - name: ESLint (advisory — reference config, soft-start)
+        run: pnpm run lint || echo "::warning::eslint reported findings (advisory in v0.1; see eslint.config.mjs incremental-adoption band)"
+
+      # ────────────────────────────────────────────────────────────────
+      # Markdown / shell / structural validators (pure bash)
+      # ────────────────────────────────────────────────────────────────
+
+      - name: Verify ADR frontmatter and structure
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in docs/decisions/*.md; do
+            case "$(basename "$f")" in
+              template.md) continue ;;
+            esac
+            head -1 "$f" | grep -qE '^# ADR-[0-9]{4}: ' || { echo "::error file=$f::Missing ADR-NNNN heading"; fail=1; }
+            grep -qE '^\*\*Status:\*\* ' "$f" || { echo "::error file=$f::Missing Status line"; fail=1; }
+            grep -qE '^\*\*Date:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$f" || { echo "::error file=$f::Missing valid Date line"; fail=1; }
+            grep -qE '^## Context$' "$f" || { echo "::error file=$f::Missing ## Context"; fail=1; }
+            grep -qE '^## Decision$' "$f" || { echo "::error file=$f::Missing ## Decision"; fail=1; }
+            grep -qE '^## Consequences$' "$f" || { echo "::error file=$f::Missing ## Consequences"; fail=1; }
+          done
+          test $fail -eq 0
+
+      # F8 closed in S6.3b: root skills/ + agents/ deleted. canonical/ is the
+      # sole source; the Claude Code emitter regenerates .claude/skills/ +
+      # .claude/agents/ (gitignored build artifacts, like dist/). Correctness
+      # of the emitted SKILL.md / agent shape is proven by the Claude Code
+      # emitter golden self-test below + the canonical frontmatter + anatomy
+      # validations. No hand-maintained SKILL.md / agent files remain to lint.
+
+      - name: Validate canonical skill frontmatter
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in canonical/skills/*.md; do
+            head -1 "$f" | grep -q '^---$' || { echo "::error file=$f::Missing frontmatter open"; fail=1; }
+            grep -qE '^spec_version: 1$' "$f" || { echo "::error file=$f::Missing spec_version: 1"; fail=1; }
+            grep -qE '^name: ' "$f" || { echo "::error file=$f::Missing name"; fail=1; }
+            grep -qE '^description: ' "$f" || { echo "::error file=$f::Missing description"; fail=1; }
+            grep -qE '^purpose: ' "$f" || { echo "::error file=$f::Missing purpose"; fail=1; }
+            grep -qE '^requires:' "$f" || { echo "::error file=$f::Missing requires"; fail=1; }
+          done
+          test $fail -eq 0
+
+      - name: Validate canonical agent frontmatter
+        run: |
+          set -euo pipefail
+          head -1 canonical/agents/reviewer-agent.md | grep -q '^---$'
+          grep -qE '^spec_version: 1$' canonical/agents/reviewer-agent.md
+          grep -qE '^name: reviewer-agent$' canonical/agents/reviewer-agent.md
+          grep -qE '^requires:' canonical/agents/reviewer-agent.md
+
+      # ────────────────────────────────────────────────────────────────
+      # YAML parse validation (Node + js-yaml; matches the runtime stack)
+      # ────────────────────────────────────────────────────────────────
+
+      - name: Parse canonical YAML frontmatter (all canonical/skills/*.md + canonical/agents/*.md)
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const yaml = require('js-yaml');
+          const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/;
+          const dirs = ['canonical/skills', 'canonical/agents'];
+          let fail = 0;
+          for (const dir of dirs) {
+            for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.md'))) {
+              const full = path.join(dir, f);
+              const text = fs.readFileSync(full, 'utf8');
+              const m = text.match(FRONTMATTER_RE);
+              if (!m) {
+                console.error(`::error file=${full}::no frontmatter`);
+                fail = 1;
+                continue;
+              }
+              try {
+                yaml.load(m[1]);
+              } catch (e) {
+                console.error(`::error file=${full}::YAML parse error: ${e.message}`);
+                fail = 1;
+              }
+            }
+          }
+          if (fail) process.exit(1);
+          console.log('All canonical frontmatter parses as valid YAML');
+          NODE
+
+      - name: Validate governance.yaml.example parses as YAML
+        run: |
+          node -e "require('js-yaml').load(require('node:fs').readFileSync('governance/governance.yaml.example','utf8')); console.log('governance.yaml.example YAML valid')"
+
+      - name: Validate canonical/tool-capabilities.yaml parses as YAML
+        run: |
+          node -e "require('js-yaml').load(require('node:fs').readFileSync('canonical/tool-capabilities.yaml','utf8')); console.log('tool-capabilities.yaml valid')"
+
+      - name: Validate testing-manifest.json.example parses as JSON
+        run: |
+          node -e "JSON.parse(require('node:fs').readFileSync('conventions/testing-manifest.json.example','utf8')); console.log('testing-manifest.json.example valid')"
+
+      # ────────────────────────────────────────────────────────────────
+      # ADR-0017 predicate: the authoring-side status-projection worked
+      # example must stay fail-closed and its drift guard non-tautological
+      # (corrupt-to-sentinel goes RED, restore GREEN). Hermetic node:test.
+      # ────────────────────────────────────────────────────────────────
+
+      - name: Status-projection refresher example self-test (ADR-0017 predicate)
+        run: node --test governance/status-projection.refresher.example.test.mjs
+
+      # ────────────────────────────────────────────────────────────────
+      # Anatomy gate (ADR-0020) — runs validateSkillAnatomy() against
+      # every canonical/skills/*.md. Same code path the emitters use.
+      # ────────────────────────────────────────────────────────────────
+
+      - name: ADR-0020 anatomy gate
+        run: node scripts/check-anatomy.mjs
+
+      # ────────────────────────────────────────────────────────────────
+      # ADR numbering integrity (ADR-0018) — filename numbers unique + each
+      # "# ADR-NNNN:" title matches its filename. Catches the parallel-work
+      # duplicate-number collision that a clean merge will not flag.
+      # ────────────────────────────────────────────────────────────────
+
+      - name: ADR-0018 unique ADR numbers gate
+        run: node scripts/check-adr-numbers.mjs
+
+      - name: ADR-0018 predicate self-test
+        run: node --test scripts/check-adr-numbers.test.mjs
+
+      # ────────────────────────────────────────────────────────────────
+      # Numeric-count reconciliation (ADR-0025) — every digit-form count
+      # claim on the positional public surfaces (README / ARCHITECTURE /
+      # ROADMAP) must equal the runtime probe (BUILTIN_PREDICATES registry,
+      # docs/decisions/NNNN-*.md, canonical/skills, canonical/agents).
+      # Upgrades repo-documentation.md rule #2 from PR-time review to a gate.
+      # ────────────────────────────────────────────────────────────────
+
+      - name: ADR-0025 numeric-count reconciliation gate
+        run: node scripts/check-counts.mjs
+
+      - name: ADR-0025 count-gate self-test
+        run: node --test scripts/check-counts.test.mjs
+
+      # ────────────────────────────────────────────────────────────────
+      # Shell hygiene
+      # ────────────────────────────────────────────────────────────────
+
+      - name: shellcheck hook examples + emitter test runners
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+          shellcheck governance/hook.example.sh
+
+      - name: No accidental Mansour-specific or RepoNav-product references in public docs
+        run: |
+          set -euo pipefail
+          # README, ARCHITECTURE, NOTICE legitimately reference RepoNav as case study/provenance.
+          # CHANGELOG cites RepoNav in provenance.
+          # ADR-0001 explains the extraction.
+          # ADR-0003 references RepoNav's ADR-0012 as the predecessor design doc.
+          # ADR-0005 references RepoNav's ADR-0011/0012 for the Node-only lock.
+          violations=$(grep -rln 'mcp__reponav__analyze\|\.reponav/' \
+            agents/ canonical/ governance/ conventions/ \
+            docs/decisions/template.md \
+            docs/decisions/0002-governance-yaml-shape.md \
+            2>/dev/null || true)
+          if [ -d skills ]; then
+            violations="$violations $(grep -rln 'mcp__reponav__analyze\|\.reponav/' skills/ 2>/dev/null || true)"
+          fi
+          if [ -n "$(echo "$violations" | xargs)" ]; then
+            echo "::error::Files still contain product-specific paths:"
+            echo "$violations"
+            exit 1
+          fi
+
+      - name: Em-dash discipline on top-level public-surface docs
+        run: |
+          set -euo pipefail
+          if grep -q " — " README.md ARCHITECTURE.md ROADMAP.md; then
+            echo "::error::Em-dashes found in README.md, ARCHITECTURE.md or ROADMAP.md. Use commas/colons/parens per brand-architect convention."
+            grep -n " — " README.md ARCHITECTURE.md ROADMAP.md
+            exit 1
+          fi
+
+      - name: Private-surface leak gate (no private working dir tracked; no never-publish sentinel)
+        run: |
+          set -euo pipefail
+          # (a) the kit's own live working memory must be gitignored, never tracked
+          if git ls-files memory/ | grep -q .; then
+            echo "::error::memory/ is tracked; the kit's own working memory must be gitignored, not published (conventions/public-flip-hygiene.md)"
+            git ls-files memory/
+            exit 1
+          fi
+          # (b) no never-publish sentinel may reach a tracked file (the two files that DEFINE the marker are excluded)
+          if git grep -nI "SCAFFOLD-PRIVATE" -- . ':!.github/workflows/ci.yml' ':!conventions/public-flip-hygiene.md'; then
+            echo "::error::a never-publish sentinel is in a tracked file; move that content to a private store"
+            exit 1
+          fi
+          echo "private-surface leak gate: clean"
+
+      # ────────────────────────────────────────────────────────────────
+      # Emitter self-tests (Node-driven)
+      # ────────────────────────────────────────────────────────────────
+
+      - name: Cursor emitter self-test
+        run: bash emitters/cursor/test/run-test.sh
+
+      - name: Copilot emitter self-test
+        run: bash emitters/copilot/test/run-test.sh
+
+      - name: Claude Code emitter self-test
+        run: bash emitters/claude-code/test/run-test.sh
+
+      - name: Claude Code emitter — emit against self (anatomy gate live-fires)
+        run: |
+          set -euo pipefail
+          # Proves the emitter runs end-to-end against the real canonical/
+          # tree (not just the 2-skill golden fixture) and that every
+          # canonical skill passes the ADR-0020 anatomy gate at emit time.
+          tmp="$(mktemp -d)"
+          node emitters/claude-code/dist/cli.js --output-root "$tmp" --mode=bootstrap >/dev/null
+          test -f "$tmp/.claude/skills/sdlc/SKILL.md"
+          test -f "$tmp/.claude/agents/reviewer-agent.md"
+          rm -rf "$tmp"
+
+      # ────────────────────────────────────────────────────────────────
+      # Rules engine self-test (vitest) + audit smoke against fixture
+      # ────────────────────────────────────────────────────────────────
+
+      - name: Rules engine self-test + coverage floor
+        run: pnpm -F @reliability-kit/engine test:coverage
+
+      - name: Engine audit smoke (fixture must report 2 errors / 3 warnings)
+        run: |
+          set -euo pipefail
+          set +e
+          node engine/dist/cli.js audit \
+            --config engine/test/fixtures/governance.yaml \
+            --repo-root engine/test/fixtures \
+            --format toon
+          code=$?
+          set -e
+          # Fixture has error-severity findings → exit 1 expected
+          if [ "$code" -ne 1 ]; then
+            echo "::error::engine audit smoke expected exit 1 (errors found), got $code"
+            exit 1
+          fi
+          rm -rf engine/test/fixtures/.scaffold
+
+      - name: Self-governance audit (dogfood; the kit runs its own rules on itself)
+        continue-on-error: true
+        run: |
+          # The kit governs ITSELF: its Universal Default Set (governance.yaml) run
+          # against its own tree. Advisory for now (continue-on-error): prints findings,
+          # never blocks. The ratchet baseline (.governance-baseline.json) is committed,
+          # so this can flip to gating (drop continue-on-error) once we trust it. Note:
+          # doc_validity warns here once ROADMAP's validity window expires; that is the
+          # rule working, not a CI fault (refresh ROADMAP's as_of to clear it).
+          node engine/dist/cli.js audit --config governance.yaml --repo-root .
+          rm -rf .scaffold
+
+      # ────────────────────────────────────────────────────────────────
+      # /scaffold wrapper smoke (bootstrap into a temp project)
+      # ────────────────────────────────────────────────────────────────
+
+      - name: Scaffold wrapper smoke (bootstrap + seed + dispatch)
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          mkdir -p "$tmp/.claude"  # makes claude-code the detected tool
+          node scripts/dist/scaffold.js --target "$tmp" --mode bootstrap
+          test -f "$tmp/.claude/skills/sdlc/SKILL.md"   # emitter dispatched
+          test -f "$tmp/.claude/agents/reviewer-agent.md"
+          test -f "$tmp/governance.yaml"                # seed copied
+          test -f "$tmp/testing-manifest.json"          # seed copied
+          test -f "$tmp/conventions/test-layers.md"     # seed copied
+          rm -rf "$tmp"
+
+      # ────────────────────────────────────────────────────────────────
+      # Tool-capabilities freshness (Node)
+      # ────────────────────────────────────────────────────────────────
+
+      - name: Tool-capabilities staleness warning
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const yaml = require('js-yaml');
+          const caps = yaml.load(fs.readFileSync('canonical/tool-capabilities.yaml', 'utf8'));
+          const today = new Date();
+          const STALE_DAYS = 180;
+          const stale = [];
+          for (const [tool, entry] of Object.entries(caps)) {
+            if (!entry || typeof entry !== 'object') continue;
+            const asOf = entry.as_of;
+            if (!asOf) continue;
+            const asOfDate = new Date(String(asOf));
+            const days = Math.floor((today - asOfDate) / (1000 * 60 * 60 * 24));
+            if (days > STALE_DAYS) stale.push({ tool, asOf, days });
+          }
+          if (stale.length > 0) {
+            console.log('::warning::Stale tool-capabilities entries (>180 days):');
+            for (const s of stale) {
+              console.log(`  - ${s.tool}: as_of=${s.asOf} (${s.days} days ago)`);
+            }
+          } else {
+            console.log('All tool-capabilities entries within 180 days; no warnings.');
+          }
+          NODE

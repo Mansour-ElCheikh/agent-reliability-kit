@@ -1,0 +1,231 @@
+# governance.yaml — Universal Default Set (ADR-0007)
+#
+# This ships ENABLED, not as inert placeholders. ADR-0007 distinguishes:
+#
+#   • Universal Default Set — consensus engineering hygiene (test-first,
+#     no-secrets, scope-containment, doc-validity, skill-size). Shipped
+#     enabled. Advisory by default (see `profile` below) so it never blocks
+#     a day-one commit; ramps to blocking when a team opts in.
+#   • Project-specific rules — your architecture's invariants (boundary
+#     imports, roadmap discipline, domain rules). Shipped commented-out as
+#     SHAPE you copy + fill in. (ADR-0001's "don't ship one project's rules
+#     as if universal" guard governs this section.)
+#
+# Contract: docs/decisions/0002-governance-yaml-shape.md + ADR-0007
+# Engine:   node <kit>/engine/dist/cli.js audit|hook|ratchet
+# Ratchet:  governance/RATCHET.md
+
+version: "1.0"
+project: my-project
+
+# ── ADR-0007 profile ────────────────────────────────────────────────────
+# solo (default): universal rules stay `warn` — recorded, ratcheted, but
+#   never block a write/commit. Minimum friction working alone.
+# team: universal rules ramp warn->error (blocking); ratchet enforced.
+# Flip to `team` once your team has agreed to the floor. `no_secrets` is a
+# safety rule: it is `error` under BOTH profiles (safety, not discipline).
+# (Legacy `mode: { default: advisory }` still degrades everything to audit.)
+profile: solo
+
+scope:
+  include:
+    - "src/**"
+    - "app/**"            # user-facing route/page surfaces (Next.js app router)
+    - "pages/**"          # user-facing surfaces (Next.js pages router)
+    - "testing-manifest.json"  # so userfacing_integration_layer can audit the manifest
+    - "docs/**"
+    - "*.md"
+    - ".claude/skills/**"
+  exclude:
+    - "node_modules/**"
+    - "dist/**"
+    - "**/*.snapshot.json"
+
+rules:
+  # ══════════════════════════════════════════════════════════════════════
+  # UNIVERSAL DEFAULT SET — ships enabled. Consensus hygiene, not opinion.
+  # Adding a rule here requires an ADR showing it is consensus, not your
+  # personal workflow (ADR-0007). Personal/architectural rules go in the
+  # project-specific section below.
+  # ══════════════════════════════════════════════════════════════════════
+
+  # Test-first: a new source file needs a co-located test sibling. Solo:
+  # warn. Team: blocks the write. (The RED-before-GREEN *ordering* is the
+  # `build` skill's job — mechanical existence check + instructional skill
+  # compose; neither replaces the other.)
+  - id: tdd_test_first
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: New source files need a co-located test (solo warn; team blocks).
+    enforcement: [hook, engine]
+    check: source_file_has_co_located_test
+    scope: "src/**/*.ts"
+
+  # Integration layer for user-facing surfaces (ADR-0016, battle-test gate-bias).
+  # SELF-SCOPING: if the repo has route/page files but the manifest declares no
+  # integration/e2e layer, the ship gate boots none of them and route-composition /
+  # realm-isolation bugs ship green. Fires ONLY when route files exist — a CLI /
+  # library / analyzer with no user-facing surface is exempt (no false positives).
+  # It gates that the layer is DECLARED (so the gate runs it); it never gates UX/taste.
+  - id: userfacing_integration_layer
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: User-facing route/page surfaces must declare an integration/e2e test layer the gate boots (self-scoping; no routes = no-op). Solo warn; team blocks.
+    enforcement: [engine]
+    check: userfacing_integration_layer
+    scope: "testing-manifest.json"
+    file_patterns:
+      - "app/**/route.{ts,js,tsx}"
+      - "app/**/page.{tsx,jsx,js}"
+      - "src/app/**/route.{ts,js,tsx}"
+      - "src/app/**/page.{tsx,jsx,js}"
+      - "pages/**/*.{tsx,jsx}"
+      - "pages/api/**/*.{ts,js}"
+    exclude_patterns:
+      - "src/**/*.config.ts"
+      - "src/**/types.ts"
+
+  # Secrets: a safety rule. Always `error`, every profile, even advisory —
+  # safety is not discipline. Conservative (placeholder/example values are
+  # excluded) so it stays trustworthy. Tune exclude_patterns for your docs.
+  - id: no_secrets
+    safety: true
+    severity: error
+    description: No credentials/keys committed (safety rule; never advisory).
+    enforcement: [hook, engine]
+    check: no_secrets
+    scope: "**"
+    exclude_patterns:
+      - "**/*.md"
+      - "**/*.example"
+      - "**/*.example.*"
+      - "**/*.test.*"
+      - "**/fixtures/**"
+
+  # Scope containment: touching a protected path is a finding — the
+  # universal "change only what you were asked to". Defaults guard the
+  # decision record + governance config + ratchet baseline from silent
+  # drift. Add your own immutable/owned paths.
+  - id: scope_containment
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: Protected paths require an explicit out-of-scope/ADR acknowledgement.
+    enforcement: [hook, engine]
+    check: scope_containment
+    scope: "**"
+    protected_paths:
+      - "docs/decisions/0*.md"
+      - "governance.yaml"
+      - ".governance-baseline.json"
+
+  # Doc validity: planning/decision docs must declare whether they are still
+  # true (validity + as_of + an expiry). A plan that can't say if it's stale
+  # silently misleads the next session — the discipline this kit dogfoods.
+  - id: doc_validity
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: Planning/decision docs need validity + as_of + expiry frontmatter.
+    enforcement: [hook, engine]
+    check: doc_validity
+    file_patterns:
+      - "ROADMAP.md"
+      - "EXECUTION_PLAN*.md"
+      - "PLAN.md"
+      - "docs/**/*plan*.md"
+      - "docs/audits/**/*.md"
+
+  # Skill size: SKILL.md files stay structurally bounded so they don't bloat
+  # agent context on every trigger. Warn at 16KB, hard error at 32KB
+  # (predicate promotes to error over the hard cap regardless of profile).
+  - id: skill_anatomy_size
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: SKILL.md under 16KB soft warn / 32KB hard cap.
+    enforcement: [hook, engine]
+    check: prompt_size_warn
+    scope: ".claude/skills/**/SKILL.md"
+    warn_bytes: 16000
+    max_bytes: 32000
+
+  # ══════════════════════════════════════════════════════════════════════
+  # SDLC-METHODOLOGY — opt-in shape. Enable these if you adopt the scaffold's
+  # epic / tasks.md + TDD task-table convention. NOT in the Universal Default
+  # Set: they presuppose that convention, so they are not consensus hygiene
+  # (ADR-0007 bar). They restore RepoNav's R21 / R20 Min-Invariant binding in
+  # tool-neutral form (ADR-0010) so the `plan` / `build` / `review` skills and
+  # the engine share a rule id. Efficacy MEASURED on a pilot (eval B, 2026-06-03:
+  # 100%->0% false-green slip-through on the shape-preserving class, see
+  # docs/findings/eval-min-invariant-ab-2026-06.md); base-rate sweep over real
+  # diffs graduates to the eval repo. Ship advisory (warn), engine-surface only,
+  # never blocking by default. Uncomment to enable.
+  # ══════════════════════════════════════════════════════════════════════
+
+  # Min-Invariant per task (R21 analogue): every tasks.md task row must carry a
+  # concrete Min-Invariant — a count, threshold, named fact, or file path — not
+  # an empty cell or a shape word. The cheapest catch for false-green tests.
+  # - id: min_invariant_per_task
+  #   severity: warn
+  #   description: Every tasks.md task row carries a concrete Min-Invariant, not a shape word.
+  #   enforcement: [engine]
+  #   check: tasks_min_invariant
+  #   file_patterns:
+  #     - "dev/epics/**/tasks.md"
+  #   # forbidden_invariant_values defaults to: array, object, defined, not empty,
+  #   # truthy, valid json, exists, non-empty, present. Override per project.
+
+  # Test invariants (R20 analogue): an it()/test() block whose assertions are all
+  # shape-only (Array.isArray / toBeDefined / toHaveProperty) with no domain
+  # invariant is a false-green risk. Conservative + adopter-scoped to the test
+  # dirs where false greens bite (RepoNav scoped its variant to MCP tests).
+  # - id: test_invariants
+  #   severity: warn
+  #   description: Test blocks need a domain invariant, not only shape-only assertions.
+  #   enforcement: [engine]
+  #   check: test_shape_assertions
+  #   scope: "src/**/*.test.ts"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PROJECT-SPECIFIC — SHAPE ONLY. Uncomment + fill in for YOUR project.
+  # These encode one project's architecture; shipping them enabled would be
+  # imposing a workflow (ADR-0001 guard). Examples, not defaults:
+  # ══════════════════════════════════════════════════════════════════════
+
+  # Roadmap-first: commits to public surfaces reference a roadmap item/ADR.
+  # - id: roadmap_first
+  #   severity: warn
+  #   description: Public-surface commits reference a roadmap item or ADR.
+  #   enforcement: [hook, engine]
+  #   check: roadmap_reference_in_commit_message
+  #   scope: "src/**"
+
+  # Boundary imports: platform APIs only in approved boundary files.
+  # Replace the patterns/files with YOUR boundary (vscode, next/server, ...).
+  # - id: boundary_import_isolation
+  #   severity: error
+  #   description: Platform-specific imports only in approved boundary files.
+  #   enforcement: [hook, engine]
+  #   check: boundary_imports
+  #   forbidden_import_patterns: ["^vscode$"]
+  #   approved_files: ["src/extension.ts"]
+  #   exclude_patterns: ["**/*.md", "**/*.test.ts"]
+
+  # ADR-on-decision: decision-language commits should add an ADR.
+  # - id: adr_on_decision
+  #   severity: audit
+  #   description: Decision-language commits should accompany a new ADR.
+  #   enforcement: [engine]
+  #   check: decision_keyword_without_adr
+  #   scope: "**"
+
+  # Testing-manifest alignment: tests live where the manifest declares.
+  # - id: testing_manifest_alignment
+  #   severity: error
+  #   description: Tests must live in directories declared in testing-manifest.json.
+  #   enforcement: [hook, engine]
+  #   check: test_file_in_manifest_directory
+  #   scope: "**/*.test.ts"

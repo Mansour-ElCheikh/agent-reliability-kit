@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_doc": "Emitted by the agent-reliability-kit. The PreToolUse hook wires the write-time governance gate (reliability-engine hook) so governance.yaml rules (co-located-test, no_secrets, scope-containment) fire AT WRITE TIME, not only at the ship gate. Set the command to your installed engine: published kit -> 'npx reliability-engine hook'; local/workspace -> 'node <path>/engine/dist/cli.js hook'. Without this hook the skills' write-time enforcement is advisory only (the ship gate remains the backstop).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx reliability-engine hook --config governance.yaml",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

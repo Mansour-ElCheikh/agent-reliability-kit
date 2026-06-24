@@ -1,0 +1,123 @@
+# governance.yaml — example adoption for a TypeScript service
+#
+# This is what an adopter's governance.yaml looks like after:
+#   1. running /scaffold (which seeds governance.yaml.example as governance.yaml)
+#   2. ramping `profile: solo` to `profile: team` (warnings become blocking)
+#   3. uncommenting and customizing two project-specific rules
+#
+# Diff against governance.yaml.example to see exactly what was changed.
+
+version: "1.0"
+project: example-typescript-service
+
+# Team profile: universal hygiene rules ramp warn -> error (blocking).
+# Ratchet is enforced; CI fails on growth. no_secrets blocks under both
+# profiles since it is a safety rule, not a discipline rule.
+profile: team
+
+scope:
+  include:
+    - "src/**"
+    - "docs/**"
+    - "*.md"
+    - ".claude/skills/**"
+  exclude:
+    - "node_modules/**"
+    - "dist/**"
+    - "**/*.snapshot.json"
+
+rules:
+  # ══════════════════════════════════════════════════════════════════════
+  # UNIVERSAL DEFAULT SET — inherited from the scaffold's example.
+  # Ramps to `error` under profile: team.
+  # ══════════════════════════════════════════════════════════════════════
+
+  - id: tdd_test_first
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: New source files need a co-located test (solo warn; team blocks).
+    enforcement: [hook, engine]
+    check: source_file_has_co_located_test
+    scope: "src/**/*.ts"
+    exclude_patterns:
+      - "src/**/*.config.ts"
+      - "src/**/types.ts"
+
+  - id: no_secrets
+    safety: true
+    severity: error
+    description: No credentials/keys committed (safety rule; never advisory).
+    enforcement: [hook, engine]
+    check: no_secrets
+    scope: "**"
+    exclude_patterns:
+      - "**/*.md"
+      - "**/*.example"
+      - "**/*.example.*"
+      - "**/*.test.*"
+      - "**/fixtures/**"
+
+  - id: scope_containment
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: Protected paths require an explicit out-of-scope/ADR acknowledgement.
+    enforcement: [hook, engine]
+    check: scope_containment
+    scope: "**"
+    protected_paths:
+      - "docs/decisions/0*.md"
+      - "governance.yaml"
+      - ".governance-baseline.json"
+
+  - id: doc_validity
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: Planning/decision docs need validity + as_of + expiry frontmatter.
+    enforcement: [hook, engine]
+    check: doc_validity
+    file_patterns:
+      - "ROADMAP.md"
+      - "EXECUTION_PLAN*.md"
+      - "PLAN.md"
+      - "docs/**/*plan*.md"
+      - "docs/audits/**/*.md"
+
+  - id: skill_anatomy_size
+    universal: true
+    ramp_to_error_on_team: true
+    severity: warn
+    description: SKILL.md under 16KB soft warn / 32KB hard cap.
+    enforcement: [hook, engine]
+    check: prompt_size_warn
+    scope: ".claude/skills/**/SKILL.md"
+    warn_bytes: 16000
+    max_bytes: 32000
+
+  # ══════════════════════════════════════════════════════════════════════
+  # PROJECT-SPECIFIC — uncommented + filled in for THIS service.
+  # ══════════════════════════════════════════════════════════════════════
+
+  # Boundary imports: the data layer (Prisma client) is allowed only in
+  # src/data/**. Controllers and handlers must not import it directly;
+  # they go through the data layer's exported API.
+  - id: boundary_imports
+    severity: error
+    description: "@prisma/client may only be imported from src/data/**."
+    enforcement: [hook, engine]
+    check: boundary_imports
+    forbidden_import_patterns: ["^@prisma/client$"]
+    approved_files: ["src/data/**"]
+    exclude_patterns: ["**/*.md", "**/*.test.ts"]
+
+  # Roadmap-first: commits that touch the public API surface must reference
+  # a roadmap item or an ADR in the commit message. Catches "drive-by"
+  # public-API changes that bypass the planning loop.
+  - id: roadmap_first
+    severity: warn
+    description: src/api/ commits should reference a roadmap item or ADR.
+    enforcement: [hook, engine]
+    check: roadmap_reference_in_commit_message
+    scope: "src/api/**"

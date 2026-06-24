@@ -1,0 +1,41 @@
+agent-reliability-kit
+Copyright 2026 Mansour El Cheikh
+
+This product is licensed under the Apache License, Version 2.0 (the "License").
+You may obtain a copy of the License at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+This product was developed with AI-assisted tooling. The human author
+directed the design, reviewed all output, and holds sole copyright per
+US Copyright Office guidance (March 2023; Thaler v. Perlmutter, August 2023)
+and equivalent EU "author's own intellectual creation" criteria
+(CJEU Infopaq International A/S v Danske Dagblades Forening, 2009).
+
+---
+
+Provenance
+
+The skills, subagent template, ADR conventions, and governance shape in this
+scaffold were extracted and generalised from RepoNav
+(github.com/Mansour-ElCheikh/Reponav, Apache-2.0). RepoNav remains the
+canonical case-study installation; the eval evidence cited in the README is
+from RepoNav's eval harness (sweep 2026-05-03-1905-T6L8) and is published,
+pinned to the measured RepoNav commit and model snapshot, in a dedicated
+evals repository: github.com/Mansour-ElCheikh/evals (Apache-2.0; see
+evals/README.md).
+
+---
+
+Third-party attribution
+
+This product ships documents, conventions, shell-script templates, and a
+local TypeScript CLI (the governance engine, scaffold wrapper, and three
+per-tool emitters). It is not a service, daemon, or SDK: no network calls,
+no `import` statements wired into adopters' application code, no runtime
+component in production. The TypeScript CLIs have a small set of npm
+dependencies (notably `commander`, `js-yaml`); the documents and templates
+ship as files only. Emitted adopter artefacts (`.claude/skills/`,
+`.cursor/rules/`, `.github/instructions/`, `governance.yaml`, etc.) are
+Markdown / YAML / shell only and contain no bundled JavaScript
+dependencies. See ADR-0008 for the runtime-language reconciliation.
